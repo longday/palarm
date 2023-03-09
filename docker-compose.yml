@@ -1,0 +1,13 @@
+version: "3"
+
+services:
+  palarm:
+    image: denoland/deno:1.31.1
+    restart: unless-stopped
+    env_file:
+    - .env
+    volumes:
+      - ./:/app:ro
+    ports:
+      - ${SERVER_PORT}:${SERVER_PORT}
+    command: /app/run.sh
