@@ -18,31 +18,41 @@ const {
 const bot = new Bot(TELEGRAM_TOKEN);
 bot.start();
 
-const ttlCache = new TTL<number>(100_000);
-ttlCache.addEventListener("expired", async (event) => {
-  log(`expired ${event.key} with ttl: ${event.val} ms`);
+const botWrite = async (channelId: string, message: string) => {
+  log(`Bot says to ${channelId}: ${message}`);
   await bot.api.sendMessage(
-    event.key,
-    `WatchDog warning! (ttl: ${event.val} ms)`,
+    channelId,
+    message,
     {
       parse_mode: "HTML",
     },
   );
+};
+
+const ttlCache = new TTL<number>(100_000);
+ttlCache.addEventListener("expired", async (event) => {
+  //log(`expired ${event.key} with ttl: ${event.val} ms`);
+  await botWrite(
+    event.key,
+    `Warning! Watchdog fired! ttl: ${event.val} ms`,
+  );
 });
 
-const pingWatchDog = (channelId: string, ttl: number) => {
+const pingWatchDog = async (channelId: string, ttl: number) => {
   if (ttl < 5000) {
     throw Error(`watchdog cant be less 5000. current : ${ttl}`);
   }
-  log(`pingWatchDog: ${channelId} with ttl: ${ttl}`);
-  ttlCache.set(channelId, ttl, ttl);
-};
+  if (ttlCache.has(channelId)) {
+    log(`pingWatchDog: ${channelId} with ttl: ${ttl} refreshed`);
+  } else {
+    //log(`pingWatchDog: ${channelId} with ttl: ${ttl} armed`);
+    await botWrite(
+      channelId,
+      `WatchDog armed with ttl: ${ttl}!`,
+    );
+  }
 
-const sendMessage = async (channelId: string, message: string) => {
-  log(`sendMessage: ${channelId} with message: ${message}`);
-  await bot.api.sendMessage(channelId, message, {
-    parse_mode: "HTML",
-  });
+  ttlCache.set(channelId, ttl, ttl);
 };
 
 await serve(async (req) => {
@@ -63,9 +73,9 @@ await serve(async (req) => {
     }
     const data = await req.text();
     if (action == "wch") {
-      pingWatchDog(chanel, parseInt(data));
+      await pingWatchDog(chanel, parseInt(data));
     } else if (action == "msg") {
-      await sendMessage(chanel, data);
+      await botWrite(chanel, data);
     } else {
       throw Error("action error: " + action);
     }
