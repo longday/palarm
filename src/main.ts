@@ -40,15 +40,15 @@ ttlCache.addEventListener("expired", async (event) => {
 
 const pingWatchDog = async (channelId: string, ttl: number) => {
   if (ttl < 5000) {
-    throw Error(`watchdog cant be less 5000. current : ${ttl}`);
+    throw Error(`watchdog cant be less 5000ms. current : ${ttl}ms`);
   }
   if (ttlCache.has(channelId)) {
-    log(`pingWatchDog: ${channelId} with ttl: ${ttl} refreshed`);
+    log(`pingWatchDog: ${channelId} with ttl: ${ttl}ms refreshed`);
   } else {
     //log(`pingWatchDog: ${channelId} with ttl: ${ttl} armed`);
     await botWrite(
       channelId,
-      `WatchDog armed with ttl: ${ttl}!`,
+      `WatchDog armed with ttl: ${ttl}ms!`,
     );
   }
 
