@@ -34,7 +34,7 @@ ttlCache.addEventListener("expired", async (event) => {
   //log(`expired ${event.key} with ttl: ${event.val} ms`);
   await botWrite(
     event.key,
-    `Warning! Watchdog fired! ttl: ${event.val} ms`,
+    `⚠️ Watchdog fired. TTL: ${event.val} ms.`,
   );
 });
 
@@ -48,7 +48,7 @@ const pingWatchDog = async (channelId: string, ttl: number) => {
     //log(`pingWatchDog: ${channelId} with ttl: ${ttl} armed`);
     await botWrite(
       channelId,
-      `WatchDog armed with ttl: ${ttl}ms!`,
+      `✅ Watchdog armed. TTL: ${ttl} ms.`,
     );
   }
 
