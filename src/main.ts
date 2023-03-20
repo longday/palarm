@@ -49,7 +49,7 @@ const menu = new Menu("my-menu-identifier")
           "Watchdog stats: \n" +
             `\n Armed: ${new Date(data.init).toISOString()}` +
             `\n Updated at: ${new Date(data.update).toISOString()}` +
-            `\n Updated count: ${data.update}`,
+            `\n Updated count: ${data.count}`,
         );
       }
     }
