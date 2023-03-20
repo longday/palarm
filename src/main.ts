@@ -25,6 +25,7 @@ interface WatchdogData {
   init: number;
   update: number;
   count: number;
+  ttl: number;
 }
 
 const bot = new Bot(TELEGRAM_TOKEN);
@@ -48,7 +49,9 @@ const menu = new Menu("my-menu-identifier")
         return ctx.reply(
           "Watchdog stats: \n" +
             `\n Armed: ${new Date(data.init).toISOString()}` +
+            `\n Fire at: ${new Date(data.update + data.ttl).toISOString()}` +
             `\n Updated at: ${new Date(data.update).toISOString()}` +
+            `\n Updated ttl: ${data.ttl} ms` +
             `\n Updated count: ${data.count}`,
         );
       }
@@ -92,12 +95,14 @@ const pingWatchDog = async (channelId: string, ttl: number) => {
   if (data) {
     data.update = Date.now();
     data.count++;
+    data.ttl = ttl;
     log(`pingWatchDog: ${channelId} with ttl: ${ttl}ms refreshed`);
   } else {
     data = {
       init: Date.now(),
       update: Date.now(),
       count: 0,
+      ttl: ttl,
     };
     await botWrite(
       channelId,
