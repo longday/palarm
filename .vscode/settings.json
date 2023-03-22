@@ -3,6 +3,7 @@
   "editor.formatOnSave": true,
   "editor.defaultFormatter": "denoland.vscode-deno",
   "cSpell.words": [
+    "dclr",
     "Palarm"
   ]
 }

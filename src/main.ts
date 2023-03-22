@@ -3,17 +3,14 @@ import { Bot } from "https://deno.land/x/grammy@v1.15.3/mod.ts";
 import { Menu } from "https://deno.land/x/grammy_menu@v1.1.3/mod.ts";
 import { Env } from "https://deno.land/x/env@v2.2.3/env.js";
 import TTL from "https://deno.land/x/ttl@1.0.1/mod.ts";
+import { chanelRegex, formatMilliseconds, log } from "./utils.ts";
+import { DeferredData, WatchdogData } from "./models.ts";
 
 const stats = {
   boot: new Date(),
   lastRequest: new Date(),
   totalRequests: 0,
 };
-const log = (msg: string) => {
-  console.log(`${new Date().toISOString()}: ${msg}`);
-};
-
-const chanelRegex = /-\d+$/;
 
 const {
   SERVER_PORT,
@@ -21,33 +18,31 @@ const {
   // deno-lint-ignore no-explicit-any
 } = new Env().required as any;
 
-interface WatchdogData {
-  init: number;
-  update: number;
-  count: number;
-  ttl: number;
-}
-
 const bot = new Bot(TELEGRAM_TOKEN);
 //https://grammy.dev/plugins/menu.html
 const menu = new Menu("my-menu-identifier")
-  .text(
-    "Server info",
-    (ctx) => {
-      return ctx.reply(
-        "Server stats:" +
-          `\nStartup:               ${stats.boot.toISOString()}` +
-          `\nLast request:      ${stats.lastRequest.toISOString()}` +
-          `\nTotal requests:   ${stats.totalRequests}`,
-      );
-    },
-  ).row()
-  .text("Palarm info", (ctx) => {
+  // .text(
+  //   "Info",
+  //   (ctx) => {
+  //     return ctx.reply(
+  //       "Server stats:" +
+  //         `\nStartup:               ${stats.boot.toISOString()}` +
+  //         `\nLast request:      ${stats.lastRequest.toISOString()}` +
+  //         `\nTotal requests:   ${stats.totalRequests}`,
+  //     );
+  //   },
+  // ).row()
+  .text("Info", (ctx) => {
     if (ctx.chat) {
-      const data = ttlCache.get(ctx.chat.id.toString());
+      const data = watchdogCache.get("wch_" + ctx.chat.id.toString());
       if (data) {
         return ctx.reply(
-          "Watchdog stats: \n" +
+          "Server stats:" +
+            `\nStartup:               ${stats.boot.toISOString()}` +
+            `\nLast request:      ${stats.lastRequest.toISOString()}` +
+            `\nTotal requests:   ${stats.totalRequests}` +
+            "\n\n" +
+            "Watchdog stats: \n" +
             `\n Armed: ${new Date(data.init).toISOString()}` +
             `\n Fire at: ${new Date(data.update + data.ttl).toISOString()}` +
             `\n Updated at: ${new Date(data.update).toISOString()}` +
@@ -69,6 +64,7 @@ bot.start();
 
 const botWrite = async (channelId: string, message: string) => {
   log(`Bot says to ${channelId}: ${message}`);
+  return;
   await bot.api.sendMessage(
     channelId,
     message,
@@ -78,20 +74,56 @@ const botWrite = async (channelId: string, message: string) => {
   );
 };
 
-const ttlCache = new TTL<WatchdogData>(100_000);
-ttlCache.addEventListener("expired", async (event) => {
-  //log(`expired ${event.key} with ttl: ${event.val} ms`);
+const watchdogCache = new TTL<WatchdogData>(60_000);
+const deferredCache = new TTL<DeferredData>(60_000);
+watchdogCache.addEventListener("expired", async (event) => {
+  //log("watchdogCache expired event: " + event.key);
   await botWrite(
     event.key,
-    `⚠️ Watchdog fired. TTL: ${event.val} ms.`,
+    `⚠️ Watchdog fired. TTL: ${formatMilliseconds(event.val?.ttl ?? 0)}.`,
   );
 });
+
+deferredCache.addEventListener("expired", async (event) => {
+  //log("deferredCache expired event: " + event.key);
+  if (event.val) {
+    await botWrite(
+      event.val.channelId,
+      `${new Date(event.val.init).toISOString()}: ${event.val?.message}`,
+    );
+  }
+});
+
+const sendMessage = async (
+  channelId: string,
+  message: string,
+  delayId: string,
+  delayMs: number,
+) => {
+  if (delayId != "" && delayMs > 0) {
+    deferredCache.set(delayId + channelId, {
+      channelId,
+      message,
+      init: Date.now(),
+    }, delayMs);
+    log(
+      `channelId: ${channelId};delayId: ${delayId}; delay: ${delayMs}; message: ${message}`,
+    );
+  } else {
+    await botWrite(channelId, message);
+  }
+};
+
+const removeDeferredMessage = (
+  channelId: string,
+  delayId: string,
+) => deferredCache.del(delayId + channelId);
 
 const pingWatchDog = async (channelId: string, ttl: number) => {
   if (ttl < 5000) {
     throw Error(`watchdog cant be less 5000ms. current : ${ttl}ms`);
   }
-  let data = ttlCache.get(channelId);
+  let data = watchdogCache.get(channelId);
   if (data) {
     data.update = Date.now();
     data.count++;
@@ -106,11 +138,11 @@ const pingWatchDog = async (channelId: string, ttl: number) => {
     };
     await botWrite(
       channelId,
-      `✅ Watchdog armed. TTL: ${ttl} ms.`,
+      `✅ Watchdog armed. TTL: ${formatMilliseconds(ttl)}.`,
     );
   }
 
-  ttlCache.set(channelId, data, ttl);
+  watchdogCache.set(channelId, data, ttl);
 };
 
 await serve(async (req) => {
@@ -135,7 +167,14 @@ await serve(async (req) => {
     if (action == "wch") {
       await pingWatchDog(chanel, parseInt(data));
     } else if (action == "msg") {
-      await botWrite(chanel, data);
+      await sendMessage(
+        chanel,
+        data,
+        url.searchParams.get("did") || "",
+        parseInt(url.searchParams.get("ms") || "0"),
+      );
+    } else if (action == "dclr") {
+      removeDeferredMessage(chanel, url.searchParams.get("did") || "");
     } else {
       throw Error("action error: " + action);
     }
