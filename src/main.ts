@@ -64,7 +64,7 @@ bot.start();
 
 const botWrite = async (channelId: string, message: string) => {
   log(`Bot says to ${channelId}: ${message}`);
-  return;
+  //return;
   await bot.api.sendMessage(
     channelId,
     message,
