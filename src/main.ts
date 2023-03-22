@@ -34,22 +34,23 @@ const menu = new Menu("my-menu-identifier")
   // ).row()
   .text("Info", (ctx) => {
     if (ctx.chat) {
-      const data = watchdogCache.get("wch_" + ctx.chat.id.toString());
+      let message = "Server stats:" +
+        `\nStartup:               ${stats.boot.toISOString()}` +
+        `\nLast request:      ${stats.lastRequest.toISOString()}` +
+        `\nTotal requests:   ${stats.totalRequests}`;
+      const data = watchdogCache.get(ctx.chat.id.toString());
       if (data) {
-        return ctx.reply(
-          "Server stats:" +
-            `\nStartup:               ${stats.boot.toISOString()}` +
-            `\nLast request:      ${stats.lastRequest.toISOString()}` +
-            `\nTotal requests:   ${stats.totalRequests}` +
-            "\n\n" +
-            "Watchdog stats: \n" +
-            `\n Armed: ${new Date(data.init).toISOString()}` +
-            `\n Fire at: ${new Date(data.update + data.ttl).toISOString()}` +
-            `\n Updated at: ${new Date(data.update).toISOString()}` +
-            `\n Updated ttl: ${data.ttl} ms` +
-            `\n Updated count: ${data.count}`,
-        );
+        message += "\n\n" +
+          "Watchdog stats: \n" +
+          `\n Armed: ${new Date(data.init).toISOString()}` +
+          `\n Fire at: ${new Date(data.update + data.ttl).toISOString()}` +
+          `\n Updated at: ${new Date(data.update).toISOString()}` +
+          `\n Updated ttl: ${data.ttl} ms` +
+          `\n Updated count: ${data.count}`;
       }
+      return ctx.reply(
+        message,
+      );
     }
 
     return ctx.reply("no data");
